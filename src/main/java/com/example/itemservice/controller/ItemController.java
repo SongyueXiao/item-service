@@ -1,15 +1,16 @@
 package com.example.itemservice.controller;
 
 import com.example.itemservice.model.Item;
-import com.example.itemservice.repository.ItemRepository;
+import com.example.itemservice.service.ItemService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/v1/items")
@@ -17,77 +18,91 @@ import java.util.Optional;
 public class ItemController {
 
     @Autowired
-    private ItemRepository itemRepository;
+    private ItemService itemService;
 
     @GetMapping
     @Operation(summary = "Get all items")
-    public List<Item> getAllItems() {
-        return itemRepository.findAll();
+    public ResponseEntity<List<Item>> getAllItems() {
+        List<Item> items = itemService.getAllItems();
+        return ResponseEntity.ok(items);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get an item by ID")
     public ResponseEntity<Item> getItemById(@PathVariable String id) {
-        Optional<Item> item = itemRepository.findById(id);
-        return item.map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return itemService.getItemById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 
     @PostMapping
     @Operation(summary = "Create a new item")
-    public Item createItem(@RequestBody Item item) {
-        return itemRepository.save(item);
+    public ResponseEntity<Item> createItem(@Valid @RequestBody Item item) {
+        Item savedItem = itemService.createItem(item);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedItem);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update an existing item")
-    public ResponseEntity<Item> updateItem(@PathVariable String id, @RequestBody Item itemDetails) {
-        Optional<Item> optionalItem = itemRepository.findById(id);
-        if (optionalItem.isPresent()) {
-            Item item = optionalItem.get();
-            item.setName(itemDetails.getName());
-            item.setDescription(itemDetails.getDescription());
-            item.setPrice(itemDetails.getPrice());
-            item.setImageUrl(itemDetails.getImageUrl());
-            item.setUpc(itemDetails.getUpc());
-            item.setInventoryCount(itemDetails.getInventoryCount());
-            Item updatedItem = itemRepository.save(item);
-            return ResponseEntity.ok(updatedItem);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<Item> updateItem(@PathVariable String id, @Valid @RequestBody Item itemDetails) {
+        return itemService.updateItem(id, itemDetails)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete an item")
     public ResponseEntity<Void> deleteItem(@PathVariable String id) {
-        if (itemRepository.existsById(id)) {
-            itemRepository.deleteById(id);
-            return ResponseEntity.ok().build();
+        if (itemService.deleteItem(id)) {
+            return ResponseEntity.noContent().build();
         } else {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 
     @GetMapping("/{id}/inventory")
     @Operation(summary = "Get inventory count for an item")
     public ResponseEntity<Integer> getInventoryCount(@PathVariable String id) {
-        Optional<Item> item = itemRepository.findById(id);
-        return item.map(i -> ResponseEntity.ok(i.getInventoryCount()))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return itemService.getItemById(id)
+                .map(item -> ResponseEntity.ok(item.getInventoryCount()))
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
     }
 
     @PostMapping("/{id}/inventory")
     @Operation(summary = "Update inventory count for an item")
     public ResponseEntity<Item> updateInventoryCount(@PathVariable String id, @RequestParam int count) {
-        Optional<Item> optionalItem = itemRepository.findById(id);
-        if (optionalItem.isPresent()) {
-            Item item = optionalItem.get();
-            item.setInventoryCount(count);
-            Item updatedItem = itemRepository.save(item);
-            return ResponseEntity.ok(updatedItem);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        return itemService.updateInventoryCount(id, count)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search items by name keyword")
+    public ResponseEntity<List<Item>> searchItemsByName(@RequestParam String keyword) {
+        List<Item> items = itemService.searchItemsByName(keyword);
+        return ResponseEntity.ok(items);
+    }
+
+    @GetMapping("/price-range")
+    @Operation(summary = "Get items within a price range")
+    public ResponseEntity<List<Item>> getItemsByPriceRange(@RequestParam double minPrice, @RequestParam double maxPrice) {
+        List<Item> items = itemService.getItemsByPriceRange(minPrice, maxPrice);
+        return ResponseEntity.ok(items);
+    }
+
+    @GetMapping("/upc/{upc}")
+    @Operation(summary = "Get an item by UPC")
+    public ResponseEntity<Item> getItemByUpc(@PathVariable String upc) {
+        return itemService.getItemByUpc(upc)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(null));
+    }
+
+    @GetMapping("/inventory/above/{count}")
+    @Operation(summary = "Get items with inventory count above a certain value")
+    public ResponseEntity<List<Item>> getItemsWithInventoryAbove(@PathVariable int count) {
+        List<Item> items = itemService.getItemsWithInventoryAbove(count);
+        return ResponseEntity.ok(items);
     }
 }
+
